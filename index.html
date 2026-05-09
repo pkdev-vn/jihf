@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>CasioEmu - Neon Edition</title>
+    <title>CasioEmuWeb</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
@@ -363,7 +363,8 @@
         <div class="upload-row">
           <input id="uploadCurrent" type="file" multiple style="flex:1;" />
           <input id="packageInput" type="file" accept=".package,.zip,.tar.gz,.tar" style="display:none;" />
-          <button id="btnImportPackage">📦 Package</button>
+          <button id="btnImportPackage">➕ Add File</button>
+          <button id="btnExtractPackage">📦 Extract</button>
         </div>
 
         <div class="btn-row">
@@ -1018,6 +1019,49 @@
       }
 
       // ============================================
+      // EXTRACT PACKAGE FILE
+      // ============================================
+      async function extractPackageFile(packagePath) {
+        const fs = getFs();
+        if (!fs) {
+          setStatus('❌ FS unavailable', 'error');
+          return;
+        }
+
+        try {
+          setStatus('🔍 Reading package file...', 'info');
+          
+          // Read the package file
+          const data = fs.readFile(packagePath, { encoding: 'binary' });
+          const buffer = new Uint8Array(data.length);
+          for (let i = 0; i < data.length; i++) {
+            buffer[i] = data.charCodeAt(i);
+          }
+          
+          const view = new Uint8Array(buffer);
+          const isZip = (view[0] === 0x50 && view[1] === 0x4B);
+          
+          console.log('Extract package - IsZip:', isZip, 'Size:', buffer.length);
+          
+          if (!isZip) {
+            setStatus('⚠️ Not a valid ZIP file', 'warning');
+            return;
+          }
+          
+          // Create a File object from the buffer
+          const fileName = packagePath.split('/').pop();
+          const file = new File([buffer], fileName, { type: 'application/zip' });
+          
+          // Extract using handleZipImport
+          await handleZipImport(file);
+          
+        } catch (e) {
+          console.error('Extract error:', e);
+          setStatus('❌ Extract failed: ' + e.message, 'error');
+        }
+      }
+
+      // ============================================
       // IMPROVED PACKAGE IMPORT WITH SMART PASSWORD DETECTION
       // ============================================
       async function handlePackageImport(file) {
@@ -1031,8 +1075,8 @@
     const buffer = await file.arrayBuffer();
     const view = new Uint8Array(buffer);
     
-    // Check if ZIP (0x504B0304)
-    const isZip = view[0] === 0x50 && view[1] === 0x4B;
+    // Check if ZIP (0x504B0304 or 0x504B0303 for split archives)
+    const isZip = (view[0] === 0x50 && view[1] === 0x4B && (view[2] === 0x03 || view[2] === 0x05 || view[2] === 0x07));
     
     // Check if TAR (magic number ustar at offset 257)
     const isTar = buffer.byteLength > 260 && 
@@ -1040,22 +1084,29 @@
                   view[259] === 0x74 && view[260] === 0x61;
 
     console.log('File analysis - IsZip:', isZip, 'IsTar:', isTar, 'Size:', buffer.byteLength);
+    console.log('First 4 bytes:', view[0].toString(16), view[1].toString(16), view[2].toString(16), view[3].toString(16));
 
     if (isZip) {
       // Handle as ZIP
       await handleZipImport(file);
     } else if (isTar) {
-      setStatus('⚠️ TAR format detected - trying to extract...', 'warning');
-      // For TAR, we'll treat entire file as importable
+      setStatus('⚠️ TAR format detected - importing...', 'warning');
       const packageFiles = [new File([buffer], file.name)];
       await uploadFiles(packageFiles);
     } else {
-      // Not ZIP or TAR - try as raw package
-      console.warn('Unknown format - treating as binary package file');
-      const packageFiles = [new File([buffer], file.name)];
-      setStatus(`⚡ Importing package file...`, 'info');
-      await uploadFiles(packageFiles);
-      setStatus(`✅ Package imported as: ${file.name}`, 'success');
+      // Try to force open as ZIP anyway (might be encrypted or have unusual header)
+      console.log('Attempting to open as ZIP despite unusual header...');
+      try {
+        await handleZipImport(file);
+      } catch (zipErr) {
+        console.warn('ZIP force open failed:', zipErr.message);
+        // Fall back to treating as binary package file
+        console.warn('Treating as binary package file');
+        const packageFiles = [new File([buffer], file.name)];
+        setStatus(`⚡ Importing package: ${file.name}`, 'info');
+        await uploadFiles(packageFiles);
+        setStatus(`✅ Imported: ${file.name}`, 'success');
+      }
     }
 
   } catch (e) {
@@ -1177,10 +1228,21 @@ async function handleZipImport(file) {
         canvas.tabIndex = 1;
         canvas.style.outline = 'none';
 
-        // Package Import Button
+        // Add File Package Button
         document.getElementById('btnImportPackage').addEventListener('click', function() {
           document.getElementById('packageInput').click();
           if (typeof releaseCalculatorFocus === "function") releaseCalculatorFocus();
+        });
+
+        // Extract Package Button
+        document.getElementById('btnExtractPackage').addEventListener('click', function() {
+          const path = currentSelectionPath();
+          if (!path) {
+            setStatus('⚠️ No file selected', 'warning');
+            return;
+          }
+          extractPackageFile(path);
+          releaseCalculatorFocus();
         });
 
         // Package Import Handler - IMPROVED VERSION
