@@ -694,41 +694,46 @@
         canvas.tabIndex = 1;
         canvas.style.outline = 'none';
         // 1. Nút bấm để mở file
+        // 1. Lệnh mở cửa sổ chọn file
         document.getElementById('btnImportPackage').addEventListener('click', function() {
             document.getElementById('packageInput').click();
             if (typeof releaseCalculatorFocus === "function") releaseCalculatorFocus();
         });
 
-        // 2. Xử lý giải nén có mật khẩu
+        // 2. Logic giải nén: Tự nhận biết mật khẩu
         document.getElementById('packageInput').addEventListener('change', async function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            setStatus("Đang kiểm tra file...");
+            setStatus("Đang kiểm tra cấu trúc file...");
             try {
-                // Đọc file nén
+                // Bước A: Thử đọc mục lục file
                 const { entries } = await unzipit.unzip(file);
                 const extractedFiles = [];
-                
-                // Duyệt qua từng file bên trong
+
+                // Bước B: Duyệt từng file nhỏ bên trong
                 for (const name in entries) {
                     const entry = entries[name];
                     if (entry.isDirectory) continue;
 
                     let content;
                     try {
-                        // Thử đọc nội dung (không pass)
+                        // Thử đọc nội dung (Giả định không có pass)
                         content = await entry.blob();
                     } catch (err) {
-                        // Nếu lỗi (thường là do có pass), sẽ hỏi người dùng
-                        const password = prompt(`File "${name}" yêu cầu mật khẩu:`);
-                        if (password === null) { setStatus("Đã hủy."); return; }
+                        // BƯỚC C: Nếu lỗi xảy ra, hệ thống "BIẾT" là file có mật khẩu
+                        const password = prompt(`File "${name}" yêu cầu mật khẩu để giải nén:`);
                         
+                        if (password === null) { 
+                            setStatus("Đã hủy nạp file."); 
+                            return; 
+                        }
+
                         try {
-                            // Thử lại với mật khẩu bạn vừa nhập
+                            // Thử lại lần 2 với mật khẩu bạn vừa nhập
                             content = await entry.blob(password);
                         } catch (passErr) {
-                            alert("Sai mật khẩu rồi bạn ơi!");
+                            alert("Sai mật khẩu rồi! Không thể giải nén.");
                             setStatus("Lỗi: Sai mật khẩu.");
                             return;
                         }
@@ -736,14 +741,16 @@
                     extractedFiles.push(new File([content], name));
                 }
 
+                // Bước D: Nạp vào giả lập sau khi giải mã thành công
                 if (extractedFiles.length > 0) {
-                    setStatus("Đang nạp vào giả lập...");
-                    await uploadFiles(extractedFiles); // Hàm nạp file có sẵn của bạn
-                    setStatus("Đã nạp thành công " + extractedFiles.length + " file!");
+                    setStatus("Đang nạp file vào hệ thống...");
+                    await uploadFiles(extractedFiles); 
+                    setStatus("Thành công! Đã nạp " + extractedFiles.length + " file.");
                 }
+
             } catch (globalErr) {
                 console.error(globalErr);
-                setStatus("Lỗi: Không thể đọc file .package này.");
+                setStatus("Lỗi: File .package hỏng hoặc không đúng định dạng.");
             }
         });
 
