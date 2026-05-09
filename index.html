@@ -68,7 +68,7 @@
       </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/unzipit@1.4.3/dist/unzipit.min.js"></script>
     <script>
       // Tiếp tục phần code JavaScript của bạn ở đây...
       // Throttle the wasm event loop to let the browser render (16ms ~ 60fps)
@@ -693,41 +693,58 @@
         // Ensure canvas can receive focus and keyboard input.
         canvas.tabIndex = 1;
         canvas.style.outline = 'none';
+        // 1. Nút bấm để mở file
+        document.getElementById('btnImportPackage').addEventListener('click', function() {
+            document.getElementById('packageInput').click();
+            if (typeof releaseCalculatorFocus === "function") releaseCalculatorFocus();
+        });
+
+        // 2. Xử lý giải nén có mật khẩu
         document.getElementById('packageInput').addEventListener('change', async function(e) {
-          const file = e.target.files[0];
-          if (!file) return;
+            const file = e.target.files[0];
+            if (!file) return;
 
-          // Hiện bảng hỏi mật khẩu
-          const password = prompt("File này có mật khẩu không? (Để trống nếu không có):");
+            setStatus("Đang kiểm tra file...");
+            try {
+                // Đọc file nén
+                const { entries } = await unzipit.unzip(file);
+                const extractedFiles = [];
+                
+                // Duyệt qua từng file bên trong
+                for (const name in entries) {
+                    const entry = entries[name];
+                    if (entry.isDirectory) continue;
 
-          setStatus("Đang giải nén .package...");
-          try {
-            // Lưu ý: JSZip chỉ hỗ trợ giải nén file không pass. 
-            // Nếu có pass, bạn nên giải nén ngoài trước khi upload.
-            const zip = await JSZip.loadAsync(file);
-            
-            const extractedFiles = [];
-            const promises = [];
+                    let content;
+                    try {
+                        // Thử đọc nội dung (không pass)
+                        content = await entry.blob();
+                    } catch (err) {
+                        // Nếu lỗi (thường là do có pass), sẽ hỏi người dùng
+                        const password = prompt(`File "${name}" yêu cầu mật khẩu:`);
+                        if (password === null) { setStatus("Đã hủy."); return; }
+                        
+                        try {
+                            // Thử lại với mật khẩu bạn vừa nhập
+                            content = await entry.blob(password);
+                        } catch (passErr) {
+                            alert("Sai mật khẩu rồi bạn ơi!");
+                            setStatus("Lỗi: Sai mật khẩu.");
+                            return;
+                        }
+                    }
+                    extractedFiles.push(new File([content], name));
+                }
 
-            zip.forEach((relativePath, zipEntry) => {
-              if (!zipEntry.dir) {
-                const p = zipEntry.async("blob").then(content => {
-                  extractedFiles.push(new File([content], relativePath));
-                });
-                promises.push(p);
-              }
-            });
-
-            await Promise.all(promises);
-
-            if (extractedFiles.length > 0) {
-              await uploadFiles(extractedFiles);
-              setStatus("Đã nạp thành công!");
+                if (extractedFiles.length > 0) {
+                    setStatus("Đang nạp vào giả lập...");
+                    await uploadFiles(extractedFiles); // Hàm nạp file có sẵn của bạn
+                    setStatus("Đã nạp thành công " + extractedFiles.length + " file!");
+                }
+            } catch (globalErr) {
+                console.error(globalErr);
+                setStatus("Lỗi: Không thể đọc file .package này.");
             }
-          } catch (err) {
-            console.error(err);
-            setStatus("Lỗi: Mật khẩu sai hoặc file không hỗ trợ!");
-          }
         });
 
         function setCalculatorFocus(enabled) {
