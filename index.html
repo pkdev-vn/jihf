@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>CasioEmuWeb</title>
+    <title>CasioEmu - Neon Edition</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
@@ -1031,17 +1031,12 @@
         try {
           setStatus('🔍 Reading package file...', 'info');
           
-          // Read the package file
-          const data = fs.readFile(packagePath, { encoding: 'binary' });
-          const buffer = new Uint8Array(data.length);
-          for (let i = 0; i < data.length; i++) {
-            buffer[i] = data.charCodeAt(i);
-          }
-          
-          const view = new Uint8Array(buffer);
+          // Read the package file as binary data
+          const data = fs.readFile(packagePath);
+          const view = new Uint8Array(data);
           const isZip = (view[0] === 0x50 && view[1] === 0x4B);
           
-          console.log('Extract package - IsZip:', isZip, 'Size:', buffer.length);
+          console.log('Extract package - IsZip:', isZip, 'Size:', data.byteLength || data.length);
           
           if (!isZip) {
             setStatus('⚠️ Not a valid ZIP file', 'warning');
@@ -1050,7 +1045,7 @@
           
           // Create a File object from the buffer
           const fileName = packagePath.split('/').pop();
-          const file = new File([buffer], fileName, { type: 'application/zip' });
+          const file = new File([data], fileName, { type: 'application/zip' });
           
           // Extract using handleZipImport
           await handleZipImport(file);
