@@ -711,15 +711,22 @@
         });
 
         document.getElementById('btnUploadFolder').addEventListener('click', function() {
-
             const input = document.getElementById('uploadFolder');
+            
+            // Kiểm tra xem có phải iOS không
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-            // Fix cho iOS Safari
-            input.removeAttribute('webkitdirectory');
-            input.removeAttribute('directory');
-
-            input.type = 'file';
-            input.multiple = true;
+            if (isIOS) {
+                // iOS không hỗ trợ chọn thư mục, nên ta chuyển sang chế độ chọn nhiều file
+                input.removeAttribute('webkitdirectory');
+                input.removeAttribute('directory');
+                input.multiple = true; 
+            } else {
+                // Các nền tảng khác vẫn cho phép chọn thư mục
+                input.setAttribute('webkitdirectory', '');
+                input.setAttribute('directory', '');
+            }
 
             input.click();
         });
@@ -730,7 +737,21 @@
         });
 
         document.getElementById('btnUploadModels').addEventListener('click', function() {
-          document.getElementById('uploadModelsFolder').click();
+            const input = document.getElementById('uploadModelsFolder');
+            
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            if (isIOS) {
+                input.removeAttribute('webkitdirectory');
+                input.removeAttribute('directory');
+                input.multiple = true;
+            } else {
+                input.setAttribute('webkitdirectory', '');
+                input.setAttribute('directory', '');
+            }
+            
+            input.click();
         });
         document.getElementById('uploadModelsFolder').addEventListener('change', function(e) {
           uploadFiles(e.target.files);
