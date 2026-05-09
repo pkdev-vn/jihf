@@ -28,13 +28,16 @@
   </head>
   <body>
     <canvas id="canvas"></canvas>
+    
     <div id="web-tools" style="position:fixed;right:8px;top:8px;z-index:9999;background:rgba(0,0,0,0.7);padding:10px;color:#fff;font-family:sans-serif;min-width:10px;max-width:420px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
         <strong style="font-size:13px;" id="toolsTitle">File Manager</strong>
         <button id="toggleToolsBtn" style="background:transparent;border:none;color:#fff;padding:0px 4px;font-size:16px;cursor:pointer;line-height:1;">▲</button>
       </div>
+
       <div id="web-tools-body" style="pointer-events:auto;">
         <div id="breadcrumb" style="margin-bottom:8px;font-size:12px;color:#9ad;word-break:break-all;"></div>
+        
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
           <button id="upBtn">Up</button>
           <button id="openBtn">Open</button>
@@ -43,21 +46,31 @@
           <button id="deleteBtn">Delete</button>
           <button id="downloadBtn">Download</button>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <input id="uploadCurrent" type="file" multiple style="flex:1;padding:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;" />
+
+        <div style="display:flex;gap:6px;margin-bottom:8px;align-items: center;">
+          <input id="uploadCurrent" type="file" multiple style="flex:1;padding:4px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;font-size:11px;" />
+          
+          <input id="packageInput" type="file" accept=".package,.zip" style="display:none;" />
+          <button id="btnImportPackage" style="background:#28a745;color:#fff;padding:5px 10px;">Import .package</button>
         </div>
+
         <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
           <input id="uploadFolder" type="file" webkitdirectory directory multiple style="display:none;" />
           <button id="btnUploadFolder">Upload Folder</button>
+          
           <input id="uploadModelsFolder" type="file" webkitdirectory directory multiple style="display:none;" />
           <button id="btnUploadModels">Upload Models Folder</button>
         </div>
+
         <select id="modelsList" size="10" style="width:100%;display:block;margin-bottom:8px;padding:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.85);color:#fff;"></select>
         <textarea id="fileEditor" style="display:none;width:100%;height:180px;margin-bottom:8px;padding:8px;border:1px solid rgba(255,255,255,0.15);background:#111;color:#fff;font-family:monospace;font-size:12px;"></textarea>
         <div id="web-tools-msg" style="min-height:18px;font-size:12px;color:#ddd"></div>
       </div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
+      // Tiếp tục phần code JavaScript của bạn ở đây...
       // Throttle the wasm event loop to let the browser render (16ms ~ 60fps)
       var originalSetTimeout = window.setTimeout;
       var lastFrameTime = performance.now();
@@ -680,6 +693,42 @@
         // Ensure canvas can receive focus and keyboard input.
         canvas.tabIndex = 1;
         canvas.style.outline = 'none';
+        document.getElementById('packageInput').addEventListener('change', async function(e) {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // Hiện bảng hỏi mật khẩu
+          const password = prompt("File này có mật khẩu không? (Để trống nếu không có):");
+
+          setStatus("Đang giải nén .package...");
+          try {
+            // Lưu ý: JSZip chỉ hỗ trợ giải nén file không pass. 
+            // Nếu có pass, bạn nên giải nén ngoài trước khi upload.
+            const zip = await JSZip.loadAsync(file);
+            
+            const extractedFiles = [];
+            const promises = [];
+
+            zip.forEach((relativePath, zipEntry) => {
+              if (!zipEntry.dir) {
+                const p = zipEntry.async("blob").then(content => {
+                  extractedFiles.push(new File([content], relativePath));
+                });
+                promises.push(p);
+              }
+            });
+
+            await Promise.all(promises);
+
+            if (extractedFiles.length > 0) {
+              await uploadFiles(extractedFiles);
+              setStatus("Đã nạp thành công!");
+            }
+          } catch (err) {
+            console.error(err);
+            setStatus("Lỗi: Mật khẩu sai hoặc file không hỗ trợ!");
+          }
+        });
 
         function setCalculatorFocus(enabled) {
           callExportedFunction('_SetWebFocusCalculator', [enabled ? 1 : 0]);
