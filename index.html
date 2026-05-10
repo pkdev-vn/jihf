@@ -11,6 +11,7 @@
       }
 
       html, body {
+        
         margin: 0;
         width: 100%;
         height: 100%;
@@ -340,6 +341,199 @@
     </style>
   </head>
   <body>
+    <!-- VIRTUAL KEYBOARD -->
+<style>
+#virtualKeyboard{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  background:rgba(10,10,20,.97);
+  backdrop-filter:blur(10px);
+  padding:10px;
+  z-index:999999;
+  display:none;
+  border-top:2px solid #00ffff;
+  box-shadow:0 -5px 30px rgba(0,255,255,.4);
+}
+
+.vk-row{
+  display:flex;
+  justify-content:center;
+  gap:6px;
+  margin-bottom:6px;
+}
+
+.vk-key{
+  min-width:42px;
+  height:42px;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(135deg,#111,#222);
+  color:#00ffff;
+  font-family:'Orbitron', monospace;
+  font-size:14px;
+  cursor:pointer;
+  border:1px solid rgba(0,255,255,.3);
+  box-shadow:0 0 10px rgba(0,255,255,.2);
+}
+
+.vk-key:active{
+  transform:scale(.95);
+  background:#00ffff;
+  color:#000;
+}
+
+.vk-wide{
+  min-width:80px;
+}
+
+.vk-space{
+  min-width:220px;
+}
+</style>
+
+<div id="virtualKeyboard"></div>
+
+<script>
+const virtualKeyboard = document.getElementById("virtualKeyboard");
+
+const keyboardLayout = [
+  ["1","2","3","4","5","6","7","8","9","0"],
+  ["q","w","e","r","t","y","u","i","o","p"],
+  ["a","s","d","f","g","h","j","k","l"],
+  ["z","x","c","v","b","n","m"],
+  ["Space","Backspace","Enter"]
+];
+
+let currentInput = null;
+
+function createVirtualKeyboard(){
+  virtualKeyboard.innerHTML = "";
+
+  keyboardLayout.forEach(row => {
+
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "vk-row";
+
+    row.forEach(key => {
+
+      const btn = document.createElement("button");
+
+      btn.className = "vk-key";
+      btn.textContent = key;
+
+      if(key === "Space")
+        btn.classList.add("vk-space");
+
+      if(key === "Backspace" || key === "Enter")
+        btn.classList.add("vk-wide");
+
+      btn.addEventListener("click", () => {
+        pressVirtualKey(key);
+      });
+
+      rowDiv.appendChild(btn);
+
+    });
+
+    virtualKeyboard.appendChild(rowDiv);
+
+  });
+}
+
+function pressVirtualKey(key){
+
+  if(!currentInput) return;
+
+  const start = currentInput.selectionStart || 0;
+  const end = currentInput.selectionEnd || 0;
+
+  let value = currentInput.value;
+
+  if(key === "Backspace"){
+
+    if(start === end && start > 0){
+      currentInput.value =
+        value.slice(0, start - 1) +
+        value.slice(end);
+
+      currentInput.selectionStart =
+      currentInput.selectionEnd = start - 1;
+    }
+
+  }
+  else{
+
+    let insert = key;
+
+    if(key === "Space") insert = " ";
+    if(key === "Enter") insert = "\n";
+
+    currentInput.value =
+      value.slice(0, start) +
+      insert +
+      value.slice(end);
+
+    currentInput.selectionStart =
+    currentInput.selectionEnd =
+      start + insert.length;
+  }
+
+  currentInput.dispatchEvent(new Event("input"));
+  currentInput.focus();
+}
+
+function attachVirtualKeyboard(){
+
+  const targets = document.querySelectorAll(
+    'input[type="text"], textarea'
+  );
+
+  targets.forEach(el => {
+
+    el.addEventListener("focus", () => {
+
+      currentInput = el;
+
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' &&
+         navigator.maxTouchPoints > 1);
+
+      if(isIOS){
+        el.blur();
+      }
+
+      virtualKeyboard.style.display = "block";
+    });
+
+    el.addEventListener("click", () => {
+      currentInput = el;
+      virtualKeyboard.style.display = "block";
+    });
+
+  });
+
+  document.addEventListener("click", e => {
+
+    if(
+      !virtualKeyboard.contains(e.target) &&
+      !e.target.matches('input[type="text"], textarea')
+    ){
+      virtualKeyboard.style.display = "none";
+    }
+
+  });
+
+}
+
+createVirtualKeyboard();
+
+window.addEventListener("load", () => {
+  attachVirtualKeyboard();
+});
+</script>
     <canvas id="canvas"></canvas>
     
     <div id="web-tools">
